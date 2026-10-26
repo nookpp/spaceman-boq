@@ -4,7 +4,8 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from typing import List, Dict, Any, Optional
 
-DEFAULT_TEMPLATE_PATH = r"D:\projects\boq-services\Blank BOQ_PLC HOUSE .xlsx"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_TEMPLATE_PATH = os.path.join(BASE_DIR, "Blank BOQ_PLC HOUSE .xlsx")
 
 def load_template_workbook(template_source: Optional[Any] = None) -> openpyxl.Workbook:
     """Loads openpyxl Workbook from path, buffer, or defaults to master file."""

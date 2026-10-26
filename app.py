@@ -164,7 +164,8 @@ with tab1:
     with col_sample:
         st.write("**หรือทดลองด้วยไฟล์ตัวอย่าง:**")
         if st.button("⚡ โหลด PLC HOUSE_Fortender.pdf (134 หน้า)", use_container_width=True):
-            sample_path = r"D:\projects\boq-services\PLC HOUSE_Fortender.pdf"
+            BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+            sample_path = os.path.join(BASE_DIR, "PLC HOUSE_Fortender.pdf")
             if os.path.exists(sample_path):
                 st.session_state.pdf_doc = pdf_processor.get_pdf_document(sample_path)
                 st.session_state.pdf_info = pdf_processor.get_pdf_summary(st.session_state.pdf_doc)
