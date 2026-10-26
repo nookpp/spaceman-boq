@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from openai import OpenAI
 
 DEFAULT_BASE_URL = "https://opencode.ai/zen/go/v1"
-DEFAULT_MODEL = "deepseek-chat"
+DEFAULT_MODEL = "deepseek-v4.1-flash"
 
 SYSTEM_PROMPT = """คุณคือวิศวกรและผู้เชี่ยวชาญการประมาณราคา (Senior Quantity Surveyor / Interior Cost Estimator)
 หน้าที่ของคุณคือ:

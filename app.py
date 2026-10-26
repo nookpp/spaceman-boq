@@ -123,7 +123,7 @@ with st.sidebar:
     
     model_choice = st.selectbox(
         "เลือก AI Model",
-        options=["deepseek-chat", "deepseek-reasoner", "qwen-2.5-72b-instruct", "glm-4-plus", "kimi-latest", "ระบุเอง..."],
+        options=["deepseek-v4.1-flash", "deepseek-chat", "deepseek-reasoner", "qwen-2.5-72b-instruct", "glm-4-plus", "kimi-latest", "ระบุเอง..."],
         index=0
     )
     if model_choice == "ระบุเอง...":
