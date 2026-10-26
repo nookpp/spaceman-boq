@@ -7,10 +7,11 @@ import openpyxl
 import pdf_processor
 import excel_generator
 import boq_engine
+import schedule_engine
 
 st.set_page_config(
-    page_title="AI BOQ Pro - ถอดแบบและสร้าง BOQ ก่อสร้าง",
-    page_icon="🏗️",
+    page_title="SPACEMAN STUDIO - AI BOQ & Schedule Pro",
+    page_icon="🪐",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -48,7 +49,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ----------------- SECURITY: PASSWORD GATE -----------------
-# Determine access password (from secrets, env, or default)
 SYSTEM_PASSWORD = None
 if hasattr(st, "secrets") and "APP_PASSWORD" in st.secrets:
     SYSTEM_PASSWORD = st.secrets["APP_PASSWORD"]
@@ -67,10 +67,10 @@ def check_password():
         st.error("❌ รหัสผ่านไม่ถูกต้อง กรุณาติดต่อผู้ดูแลระบบเพื่อขอรหัสผ่าน")
 
 if not st.session_state.authenticated:
-    st.markdown('<div class="main-title">🔒 ระบบเข้าสู่ระบบ AI BOQ Pro</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">เครื่องมือถอด BOQ ก่อสร้าง (เฉพาะทีมงานและผู้ได้รับอนุญาต)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-title">🔒 ระบบเข้าสู่ระบบ SPACEMAN STUDIO</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">เครื่องมือถอด BOQ และสร้าง Project Schedule (เฉพาะทีมงานและผู้ได้รับอนุญาต)</div>', unsafe_allow_html=True)
     
-    st.info("💡 **ระบบป้องกันความปลอดภัย:** เพื่อนๆ สามารถใส่รหัสผ่านที่ได้รับเพื่อเริ่มใช้งานได้ทันที (โดยไม่ต้องใช้ API Key ส่วนตัว)")
+    st.info("💡 **ระบบความปลอดภัย:** เพื่อนๆ สามารถใส่รหัสผ่านที่ได้รับเพื่อเริ่มใช้งานได้ทันที (โดยไม่ต้องใช้ API Key ส่วนตัว)")
     col_p1, col_p2 = st.columns([1, 1.5])
     with col_p1:
         st.text_input("กรอกรหัสผ่านเพื่อเข้าใช้งาน:", type="password", key="password_input", on_change=check_password)
@@ -87,10 +87,10 @@ if "pdf_info" not in st.session_state:
     st.session_state.pdf_info = None
 if "detected_codes" not in st.session_state:
     st.session_state.detected_codes = []
+if "schedule_data" not in st.session_state:
+    st.session_state.schedule_data = schedule_engine.get_sample_brewave_schedule()
 
 # ----------------- SECRETS & API KEY RESOLUTION -----------------
-# 1. From st.secrets (Streamlit Cloud)
-# 2. From os.environ
 server_api_key = ""
 if hasattr(st, "secrets") and "OPENCODE_API_KEY" in st.secrets:
     server_api_key = st.secrets["OPENCODE_API_KEY"]
@@ -127,7 +127,7 @@ with st.sidebar:
         index=0
     )
     if model_choice == "ระบุเอง...":
-        model_choice = st.text_input("ชื่อ Model ที่ต้องการ", value="deepseek-chat")
+        model_choice = st.text_input("ชื่อ Model ที่ต้องการ", value="deepseek-v4.1-flash")
         
     st.divider()
     st.subheader("2. แบบฟอร์ม BOQ แม่แบบ")
@@ -151,10 +151,15 @@ with st.sidebar:
         st.rerun()
 
 # ----------------- MAIN CONTENT -----------------
-st.markdown('<div class="main-title">🏗️ AI BOQ Pro — ถอดแบบและสร้าง BOQ ก่อสร้าง</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">เครื่องมืออัจฉริยะสำหรับสถาปนิก ผู้รับเหมา และวิศวกรประมาณราคา ขับเคลื่อนด้วย OpenCode Go + Streamlit</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">🪐 SPACEMAN STUDIO — AI BOQ & Project Schedule</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">เครื่องมืออัจฉริยะสำหรับถอดแบบ BOQ และสร้างไทม์ไลน์โครงการ (Gantt Chart) ส่งมอบลูกค้า</div>', unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["📑 1. แบบก่อสร้าง (Drawings & PDF)", "🤖 2. ประมวลผลถอด BOQ (AI Extract)", "📊 3. ตรวจสอบ & ส่งออก Excel"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "📑 1. แบบก่อสร้าง (Drawings & PDF)", 
+    "🤖 2. ประมวลผลถอด BOQ (AI Extract)", 
+    "📊 3. ตรวจสอบ & ส่งออก BOQ Excel",
+    "📅 4. ไทม์ไลน์งาน (Project Schedule)"
+])
 
 # ================= TAB 1: DRAWINGS =================
 with tab1:
@@ -243,7 +248,6 @@ with tab2:
         run_ai_btn = st.button("🚀 สั่ง AI ถอด BOQ (OpenCode Go)", type="primary", use_container_width=True)
         demo_btn = st.button("⚡ โหลดข้อมูลทดสอบสำเร็จรูป (PLC House Demo)", use_container_width=True, help="ใช้ทดลองระบบทันทีโดยไม่ต้องใส่ API Key")
 
-    # Handling Action
     if demo_btn:
         st.session_state.items_data = boq_engine.get_demo_precalculated_items()
         st.success("✅ โหลดข้อมูลทดสอบสำหรับโครงการ PLC House สำเร็จ! (มีทั้งชั้น 1, ชั้น 2, งานระบบ และ Preliminary)")
@@ -254,7 +258,6 @@ with tab2:
         else:
             with st.spinner(f"กำลังส่งข้อมูลให้ {model_choice} ผ่าน OpenCode Go วิเคราะห์..."):
                 try:
-                    # Gather text input
                     if extract_mode == "ดึงจากรหัสและสารบัญแบบที่ AI ตรวจพบ (แนะนำ)":
                         if st.session_state.pdf_doc is not None:
                             content_to_send = pdf_processor.extract_pages_text(st.session_state.pdf_doc, [8, 16, 20, 24, 42])
@@ -283,7 +286,6 @@ with tab2:
     if st.session_state.items_data:
         df = pd.DataFrame(st.session_state.items_data)
         
-        # Ensure standard columns exist
         for col in ["code", "category", "description", "qty", "unit", "material_rate", "labour_rate", "remark"]:
             if col not in df.columns:
                 df[col] = "" if col in ["code", "category", "description", "unit", "remark"] else 0.0
@@ -293,11 +295,9 @@ with tab2:
         df["labour_rate"] = pd.to_numeric(df["labour_rate"], errors="coerce").fillna(0.0)
         df["total_amount"] = (df["material_rate"] + df["labour_rate"]) * df["qty"]
 
-        # Rename columns for friendly display
         display_df = df[["code", "category", "description", "qty", "unit", "material_rate", "labour_rate", "total_amount", "remark"]].copy()
         display_df.columns = ["รหัสแบบ", "หมวดงาน", "รายละเอียดรายการ", "จำนวน", "หน่วย", "ค่าวัสดุ/หน่วย", "ค่าแรง/หน่วย", "รวมเงิน (บาท)", "หมายเหตุ"]
 
-        # Render editable dataframe
         edited_df = st.data_editor(
             display_df,
             use_container_width=True,
@@ -311,7 +311,6 @@ with tab2:
             }
         )
 
-        # Sync back edited data
         st.session_state.items_data = [
             {
                 "code": row["รหัสแบบ"],
@@ -333,7 +332,6 @@ with tab3:
     st.subheader("📊 สรุปงบประมาณและส่งออกไฟล์ Excel")
     
     if st.session_state.items_data:
-        # Calculate summary numbers
         items = st.session_state.items_data
         total_mat = sum(float(it.get("material_rate", 0)) * float(it.get("qty", 1)) for it in items)
         total_lab = sum(float(it.get("labour_rate", 0)) * float(it.get("qty", 1)) for it in items)
@@ -370,7 +368,6 @@ with tab3:
             project_title = st.text_input("ชื่อโครงการ (Project)", value="Reignwood Park (PLC House)")
             customer_title = st.text_input("ชื่อลูกค้า (Customer)", value="คุณลูกค้า")
             
-            # Generate the Excel file
             excel_bytes = excel_generator.populate_boq_excel(
                 template_source=custom_template_file,
                 items_data=st.session_state.items_data,
@@ -391,3 +388,93 @@ with tab3:
             st.success("✨ ไฟล์ Excel มีการผูกสูตรผลรวมและค่าดำเนินการตามโครงสร้างมาตรฐานของบริษัทเรียบร้อยแล้ว!")
     else:
         st.info("กรุณาประมวลผลหรือโหลดข้อมูลในแท็บที่ 2 ก่อนเพื่อดูผลสรุปและดาวน์โหลดไฟล์ Excel")
+
+# ================= TAB 4: PROJECT SCHEDULE =================
+with tab4:
+    st.subheader("📅 SPACEMAN STUDIO — Project Schedule Generator")
+    st.markdown("พิมพ์บอกระยะเวลาและขั้นตอนงานเป็นภาษาพูด แล้วให้ AI จัดตาราง Gantt Chart สีสันตามมาตรฐานพร้อมจุดประชุม (M) และ Opening Date")
+
+    col_sched_input, col_sched_btn = st.columns([2.5, 1])
+    
+    with col_sched_input:
+        default_prompt = (
+            "โปรเจกต์ Brewave Aree ออกแบบและตกแต่งภายใน เริ่มวันที่ 09 May 2025\n"
+            "วางแผน 7 ขั้นตอน:\n"
+            "A. Schematic Design: ทำ Lay-out 1 สัปดาห์ (May W2) นัดประชุม M\n"
+            "B. Preliminary design: Rendering 1 สัปดาห์ นัดประชุม M, แก้แบบ 1 สัปดาห์, Final rendering 1 สัปดาห์ นัดประชุม M, Material presentation 2 สัปดาห์ นัดประชุม M\n"
+            "C. Design develop: MEP Drawing 2 สัปดาห์, AC Drawing 2 สัปดาห์\n"
+            "D. Final drawing 1: Interior joinery drawing 4 สัปดาห์ (June W1-W4)\n"
+            "E. Final drawing 2: Interior detail & equipment specs 4 สัปดาห์ (June W4 - July W3)\n"
+            "F. BOQ stage: MEP/AC BOQ 1 สัปดาห์ นัดประชุม, Interior construction BOQ 3 สัปดาห์ นัดประชุม, สั่งเฟอร์นิเจอร์ลอยตัว (Loose furniture) 10 สัปดาห์ นัดประชุม 3 ครั้ง\n"
+            "G. Construction stage: งานระบบ 6 สัปดาห์ นัดประชุม 2 ครั้ง, งานก่อสร้างภายใน 10 สัปดาห์ นัดประชุมทุก 2 สัปดาห์, งานเก็บดีเฟกต์ 4 สัปดาห์ นัดประชุม 2 ครั้ง\n"
+            "กำหนดเปิดร้าน (OPENING DATE): สัปดาห์ที่ 2 ของเดือน October 2025"
+        )
+        schedule_prompt_text = st.text_area(
+            "พิมพ์รายละเอียดไทม์ไลน์ที่ต้องการให้ AI วางแผน:",
+            value=default_prompt,
+            height=200
+        )
+
+    with col_sched_btn:
+        st.write("**การสร้างไทม์ไลน์:**")
+        ai_sched_btn = st.button("🚀 สั่ง AI สร้างไทม์ไลน์ (OpenCode Go)", type="primary", use_container_width=True)
+        sample_sched_btn = st.button("⚡ โหลดตัวอย่าง Brewave Aree ทันที", use_container_width=True, help="โหลดไทม์ไลน์ตามรูปภาพตัวอย่างของ SPACEMAN STUDIO ทันที")
+
+    if sample_sched_btn:
+        st.session_state.schedule_data = schedule_engine.get_sample_brewave_schedule()
+        st.success("✅ โหลดไทม์ไลน์ตัวอย่าง Brewave Aree เรียบร้อยแล้ว!")
+
+    if ai_sched_btn:
+        if not api_key_input:
+            st.error("⚠️ ยังไม่ได้ตั้งค่า 'OpenCode Go API Key' (หรือคลิกปุ่ม 'โหลดตัวอย่าง Brewave Aree ทันที' เพื่อลองดูผลลัพธ์ก่อนได้)")
+        else:
+            with st.spinner(f"กำลังส่งให้ {model_choice} วางแผนไทม์ไลน์ตามมาตรฐาน SPACEMAN STUDIO..."):
+                try:
+                    parsed_sched = schedule_engine.parse_schedule_prompt(
+                        api_key=api_key_input,
+                        user_prompt=schedule_prompt_text,
+                        base_url=base_url_input,
+                        model_name=model_choice
+                    )
+                    st.session_state.schedule_data = parsed_sched
+                    st.success("🎉 AI สร้างไทม์ไลน์งานสำเร็จเรียบร้อย!")
+                except Exception as e:
+                    st.error(f"เกิดข้อผิดพลาดในการสร้างไทม์ไลน์: {str(e)}")
+
+    st.divider()
+    
+    if st.session_state.schedule_data:
+        sched_data = st.session_state.schedule_data
+
+        # Top summary info
+        c_pname, c_date, c_year, c_open = st.columns(4)
+        c_pname.metric("ชื่อโครงการ", sched_data.get("project_name", "-"))
+        c_date.metric("วันที่ออกเอกสาร", sched_data.get("date", "-"))
+        c_year.metric("ปีที่ดำเนินการ", str(sched_data.get("year", "2025")))
+        op_info = sched_data.get("opening_date", {})
+        c_open.metric("กำหนดเปิดร้าน (Opening)", f"{op_info.get('month', '')} Week {op_info.get('week', '')}")
+
+        st.subheader("🖥️ ตัวอย่างตาราง Project Schedule (SPACEMAN STUDIO)")
+        
+        # Render visual HTML Gantt Table
+        gantt_html = schedule_engine.render_schedule_html(sched_data)
+        st.components.v1.html(gantt_html, height=580, scrolling=True)
+
+        st.divider()
+        col_d1, col_d2 = st.columns([2, 1])
+        with col_d1:
+            st.write("### 💾 ส่งออกไฟล์ Excel (.xlsx)")
+            st.write("ตารางจะถูกระบายสีตามแต่ละหมวดหมู่ (เหลือง, เขียว, ฟ้า, ส้ม, ชมพู) พร้อมใส่ตัว **`M`** ในสัปดาห์ที่มีการนัดประชุมลูกค้า และทำแถบเสาสีเข้ม **`OPENING DATE`** เป๊ะตามมาตรฐานบริษัท")
+            
+        with col_d2:
+            sched_excel_bytes = schedule_engine.generate_schedule_excel(sched_data)
+            p_clean = sched_data.get("project_name", "Schedule").replace(" ", "_")
+            st.download_button(
+                label="📥 ดาวน์โหลดไทม์ไลน์ Excel (.xlsx)",
+                data=sched_excel_bytes.getvalue(),
+                file_name=f"Schedule_{p_clean}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                type="primary",
+                use_container_width=True
+            )
+            st.success("✨ ฟอร์ม Excel ได้รับการจัดระยะหน้ากระดาษและฟอนต์พร้อมส่งต่อลูกค้าทันที!")
