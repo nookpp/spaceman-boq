@@ -48,7 +48,8 @@ def extract_boq_from_text_or_drawing(
 
     client = OpenAI(
         base_url=base_url,
-        api_key=api_key
+        api_key=api_key,
+        default_headers={"x-opencode-session": "ses_spaceman_boq"}
     )
 
     prompt = f"วิเคราะห์ข้อมูลแบบก่อสร้างและสเปกต่อไปนี้ แล้วถอดรายการ BOQ ตามฟอร์แมต JSON ที่กำหนด:\n\n{content_text}"

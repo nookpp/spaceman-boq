@@ -146,7 +146,7 @@ def parse_schedule_prompt(
     if not api_key:
         raise ValueError("กรุณาระบุ AI Engine API Key")
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    client = OpenAI(base_url=base_url, api_key=api_key, default_headers={"x-opencode-session": "ses_spaceman_schedule"})
     
     response = client.chat.completions.create(
         model=model_name,

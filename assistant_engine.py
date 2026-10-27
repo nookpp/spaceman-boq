@@ -288,7 +288,7 @@ def run_chat_turn(
     if not api_key:
         return "กรุณาใส่ AI Engine API Key ในการตั้งค่าระบบ (⚙️ ด้านล่าง) ก่อนเริ่มสนทนาครับ", []
 
-    client = OpenAI(base_url=base_url, api_key=api_key)
+    client = OpenAI(base_url=base_url, api_key=api_key, default_headers={"x-opencode-session": "ses_spaceman_chat"})
     
     # Format messages for OpenAI API
     api_messages = [{"role": "system", "content": ASSISTANT_SYSTEM_PROMPT}]
