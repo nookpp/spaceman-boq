@@ -286,7 +286,7 @@ def run_chat_turn(
     Returns (assistant_reply_text, list_of_actions_taken).
     """
     if not api_key:
-        return "กรุณาใส่ OpenCode Go API Key ในการตั้งค่าระบบ (⚙️ ด้านล่าง) ก่อนเริ่มสนทนาครับ", []
+        return "กรุณาใส่ AI Engine API Key ในการตั้งค่าระบบ (⚙️ ด้านล่าง) ก่อนเริ่มสนทนาครับ", []
 
     client = OpenAI(base_url=base_url, api_key=api_key)
     

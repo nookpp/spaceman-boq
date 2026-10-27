@@ -142,9 +142,9 @@ def parse_schedule_prompt(
     base_url: str = DEFAULT_BASE_URL,
     model_name: str = DEFAULT_MODEL
 ) -> Dict[str, Any]:
-    """Uses OpenCode Go to extract structured schedule JSON from natural text."""
+    """Uses SPACEMAN AI Engine to extract structured schedule JSON from natural text."""
     if not api_key:
-        raise ValueError("กรุณาระบุ OpenCode Go API Key")
+        raise ValueError("กรุณาระบุ AI Engine API Key")
 
     client = OpenAI(base_url=base_url, api_key=api_key)
     

@@ -41,10 +41,10 @@ def extract_boq_from_text_or_drawing(
     system_prompt: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
-    Calls OpenCode Go (OpenAI-compatible API) to extract BOQ items.
+    Calls SPACEMAN AI Engine (OpenAI-compatible API) to extract BOQ items.
     """
     if not api_key:
-        raise ValueError("กรุณาระบุ OpenCode Go API Key")
+        raise ValueError("กรุณาระบุ AI Engine API Key")
 
     client = OpenAI(
         base_url=base_url,

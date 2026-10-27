@@ -162,7 +162,7 @@ with st.sidebar:
             st.success("🔒 ระบบใช้ API Key กลางของระบบแล้ว (ปลอดภัย)")
             admin_api_key = server_api_key
         else:
-            admin_api_key = st.text_input("OpenCode Go API Key", value="", type="password")
+            admin_api_key = st.text_input("AI Engine API Key", value="", type="password")
             api_key_value = admin_api_key
 
         admin_base_url = st.text_input("Base URL", value=base_url_value)
@@ -320,7 +320,7 @@ with tab2:
 
     with col_ctrl:
         st.write("**เริ่มการประมวลผล:**")
-        run_ai_btn = st.button("🚀 สั่ง AI ถอด BOQ (OpenCode Go)", type="primary", use_container_width=True)
+        run_ai_btn = st.button("🚀 สั่ง SPACEMAN AI ถอด BOQ", type="primary", use_container_width=True)
         demo_btn = st.button("⚡ โหลดข้อมูลทดสอบสำเร็จรูป (PLC House Demo)", use_container_width=True, help="ใช้ทดลองระบบทันทีโดยไม่ต้องใส่ API Key")
 
     if demo_btn:
@@ -329,9 +329,9 @@ with tab2:
 
     if run_ai_btn:
         if not api_key_value:
-            st.error("⚠️ ยังไม่ได้ตั้งค่า 'OpenCode Go API Key' (กรุณาใส่ใน ⚙️ การตั้งค่าระบบ หรือโหลดข้อมูลทดสอบ)")
+            st.error("⚠️ ยังไม่ได้ตั้งค่า 'AI Engine API Key' (กรุณาใส่ใน ⚙️ การตั้งค่าระบบ หรือโหลดข้อมูลทดสอบ)")
         else:
-            with st.spinner(f"กำลังส่งข้อมูลให้ {model_choice_value} ผ่าน OpenCode Go วิเคราะห์..."):
+            with st.spinner("SPACEMAN AI กำลังวิเคราะห์และถอดรายการ BOQ..."):
                 try:
                     if extract_mode == "ดึงจากรหัสและสารบัญแบบที่ AI ตรวจพบ (แนะนำ)":
                         if st.session_state.pdf_doc is not None:
@@ -493,7 +493,7 @@ with tab4:
 
     with col_sched_btn:
         st.write("**การสร้างไทม์ไลน์:**")
-        ai_sched_btn = st.button("🚀 สั่ง AI สร้างไทม์ไลน์ (OpenCode Go)", type="primary", use_container_width=True)
+        ai_sched_btn = st.button("🚀 สั่ง SPACEMAN AI สร้างไทม์ไลน์", type="primary", use_container_width=True)
         sample_sched_btn = st.button("⚡ โหลดตัวอย่าง Brewave Aree ทันที", use_container_width=True, help="โหลดไทม์ไลน์ตามรูปภาพตัวอย่างของ SPACEMAN STUDIO ทันที")
 
     if sample_sched_btn:
@@ -502,9 +502,9 @@ with tab4:
 
     if ai_sched_btn:
         if not api_key_value:
-            st.error("⚠️ ยังไม่ได้ตั้งค่า 'OpenCode Go API Key' (กรุณาใส่ใน ⚙️ การตั้งค่าระบบ หรือโหลดข้อมูลทดสอบ)")
+            st.error("⚠️ ยังไม่ได้ตั้งค่า 'AI Engine API Key' (กรุณาใส่ใน ⚙️ การตั้งค่าระบบ หรือโหลดตัวอย่าง)")
         else:
-            with st.spinner(f"กำลังส่งให้ {model_choice_value} วางแผนไทม์ไลน์ตามมาตรฐาน SPACEMAN STUDIO..."):
+            with st.spinner("SPACEMAN AI กำลังวางแผนไทม์ไลน์ตามมาตรฐาน SPACEMAN STUDIO..."):
                 try:
                     parsed_sched = schedule_engine.parse_schedule_prompt(
                         api_key=api_key_value,
