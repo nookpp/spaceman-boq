@@ -8,6 +8,7 @@ import pdf_processor
 import excel_generator
 import boq_engine
 import schedule_engine
+import assistant_engine
 
 st.set_page_config(
     page_title="SPACEMAN STUDIO - AI BOQ & Schedule Pro",
@@ -44,6 +45,15 @@ st.markdown("""
         padding: 10px 20px;
         font-weight: 600;
         border-radius: 6px;
+    }
+    /* Compact chat styling in sidebar */
+    [data-testid="stSidebar"] [data-testid="stChatMessage"] {
+        padding: 8px 12px;
+        font-size: 0.88rem;
+    }
+    [data-testid="stSidebar"] h3 {
+        margin-top: 0;
+        padding-top: 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -89,6 +99,15 @@ if "detected_codes" not in st.session_state:
     st.session_state.detected_codes = []
 if "schedule_data" not in st.session_state:
     st.session_state.schedule_data = schedule_engine.get_sample_brewave_schedule()
+if "overhead_pct" not in st.session_state:
+    st.session_state.overhead_pct = 10.0
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = [
+        {
+            "role": "assistant", 
+            "content": "สวัสดีครับ! ผมคือ **SPACEMAN Assistant** 🪐\n\nพิมพ์สั่งงานหรือถามผมได้เลยครับ เช่น:\n- *'สรุปยอดรวม BOQ ตอนนี้ให้หน่อย'*\n- *'ปรับค่าแรงตู้ TV เป็น 10,000'*\n- *'ช่วยหาแบบตู้เสื้อผ้าในแปลนให้ที'*\n- *'โหลดข้อมูลตัวอย่าง PLC House'*"
+        }
+    ]
 
 # ----------------- SECRETS & API KEY RESOLUTION -----------------
 server_api_key = ""
@@ -97,66 +116,122 @@ if hasattr(st, "secrets") and "OPENCODE_API_KEY" in st.secrets:
 elif os.getenv("OPENCODE_API_KEY"):
     server_api_key = os.getenv("OPENCODE_API_KEY")
 
-# ----------------- SIDEBAR: CONFIGURATION -----------------
-with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/blueprint.png", width=64)
-    st.title("⚙️ ตั้งค่าระบบ AI & ฟอร์ม")
-    
-    st.subheader("1. OpenCode Go (AI Engine)")
-    
-    if server_api_key:
-        st.success("🔒 ระบบใช้ API Key กลางของเจ้าของระบบ (เพื่อนๆ กดใช้ได้เลย ไม่ต้องกรอก)")
-        api_key_input = server_api_key
-    else:
-        api_key_input = st.text_input(
-            "OpenCode Go API Key",
-            value="",
-            type="password",
-            help="ใส่ API Key จาก OpenCode Go เพื่อให้ AI ถอดแบบแปลน"
-        )
-    
-    base_url_input = st.text_input(
-        "Base URL (OpenAI-compatible)",
-        value="https://opencode.ai/zen/go/v1",
-        help="Endpoint มาตรฐานของ OpenCode Go"
-    )
-    
-    model_choice = st.selectbox(
-        "เลือก AI Model",
-        options=["deepseek-v4.1-flash", "deepseek-chat", "deepseek-reasoner", "qwen-2.5-72b-instruct", "glm-4-plus", "kimi-latest", "ระบุเอง..."],
-        index=0
-    )
-    if model_choice == "ระบุเอง...":
-        model_choice = st.text_input("ชื่อ Model ที่ต้องการ", value="deepseek-v4.1-flash")
-        
-    st.divider()
-    st.subheader("2. แบบฟอร์ม BOQ แม่แบบ")
-    template_option = st.radio(
-        "เลือก Template",
-        options=["ใช้ Blank BOQ_PLC HOUSE .xlsx (ในโฟลเดอร์)", "อัปโหลดไฟล์ Excel (.xlsx) ของฉัน"],
-        index=0
-    )
-    
-    custom_template_file = None
-    if template_option == "อัปโหลดไฟล์ Excel (.xlsx) ของฉัน":
-        custom_template_file = st.file_uploader("เลือกไฟล์ Template Excel", type=["xlsx"])
-    
-    st.divider()
-    st.subheader("3. การคิดค่าดำเนินการ (Overhead)")
-    overhead_pct = st.slider("ค่าดำเนินการ (%)", min_value=0.0, max_value=25.0, value=10.0, step=0.5)
-    
-    st.divider()
-    if st.button("🚪 ออกจากระบบ"):
-        st.session_state.authenticated = False
-        st.rerun()
+# Default values for settings (can be overridden in Admin expander)
+api_key_value = server_api_key
+base_url_value = "https://opencode.ai/zen/go/v1"
+model_choice_value = "deepseek-v4.1-flash"
+custom_template_file = None
 
-# ----------------- MAIN CONTENT -----------------
+# ----------------- SIDEBAR: AI ASSISTANT (MAIN) & SETTINGS (COLLAPSED) -----------------
+with st.sidebar:
+    st.markdown("### 💬 SPACEMAN Assistant")
+    st.caption("ผู้ช่วยอัจฉริยะประจำระบบ — สั่งงาน แก้ไขราคา และสอบถามได้ทันที")
+
+    # Quick action chips
+    st.write("**คำสั่งด่วนที่พบบ่อย:**")
+    q_col1, q_col2 = st.columns(2)
+    quick_prompt = None
+    with q_col1:
+        if st.button("📊 สรุปยอดเงิน", use_container_width=True):
+            quick_prompt = "สรุปยอดรวม BOQ ตอนนี้ให้หน่อย แยกค่าวัสดุ ค่าแรง และราคารวมสุทธิ"
+        if st.button("🔍 ตรวจรหัสแบบ", use_container_width=True):
+            quick_prompt = "มีรหัสแบบอะไรบ้างในเล่มแปลนที่ตรวจพบ สรุปมาสั้นๆ"
+    with q_col2:
+        if st.button("⚡ โหลดตัวอย่าง", use_container_width=True):
+            quick_prompt = "โหลดข้อมูลตัวอย่างทั้ง BOQ PLC House และ ไทม์ไลน์ Brewave เข้าสู่ระบบ"
+        if st.button("📅 ดูไทม์ไลน์", use_container_width=True):
+            quick_prompt = "สรุปไทม์ไลน์โครงการปัจจุบันให้หน่อย เริ่มเมื่อไหร่และเปิดร้านเมื่อไหร่"
+
+    # Chat history display container
+    chat_container = st.container(height=350)
+    with chat_container:
+        for msg in st.session_state.chat_messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+    # Chat input box
+    user_chat_input = st.chat_input("พิมพ์สั่งงานผู้ช่วยที่นี่...")
+    
+    # Trigger message either from quick button or typed input
+    active_prompt = quick_prompt or user_chat_input
+
+    # ----------------- SETTINGS EXPANDER (ADMIN / ADVANCED) -----------------
+    st.divider()
+    with st.expander("⚙️ การตั้งค่าระบบ (สำหรับแอดมิน)", expanded=False):
+        if server_api_key:
+            st.success("🔒 ระบบใช้ API Key กลางของระบบแล้ว (ปลอดภัย)")
+            admin_api_key = server_api_key
+        else:
+            admin_api_key = st.text_input("OpenCode Go API Key", value="", type="password")
+            api_key_value = admin_api_key
+
+        admin_base_url = st.text_input("Base URL", value=base_url_value)
+        base_url_value = admin_base_url
+
+        admin_model = st.selectbox(
+            "AI Model",
+            options=["deepseek-v4.1-flash", "deepseek-chat", "deepseek-reasoner", "qwen-2.5-72b-instruct", "glm-4-plus", "kimi-latest"],
+            index=0
+        )
+        model_choice_value = admin_model
+
+        admin_overhead = st.slider("ค่าดำเนินการ Overhead (%)", min_value=0.0, max_value=25.0, value=float(st.session_state.overhead_pct), step=0.5)
+        st.session_state.overhead_pct = admin_overhead
+
+        template_choice = st.radio("Template BOQ", ["ใช้ Blank BOQ_PLC HOUSE .xlsx", "อัปโหลดไฟล์ใหม่"], index=0)
+        if template_choice == "อัปโหลดไฟล์ใหม่":
+            custom_template_file = st.file_uploader("เลือกไฟล์ Excel แม่แบบ", type=["xlsx"])
+
+        if st.button("🚪 ออกจากระบบ", use_container_width=True):
+            st.session_state.authenticated = False
+            st.rerun()
+
+# ----------------- PROCESS ASSISTANT TURN IF USER PROMPTED -----------------
+if active_prompt:
+    # 1. Add user message
+    st.session_state.chat_messages.append({"role": "user", "content": active_prompt})
+
+    # 2. Package current session state into a mutable dict for tools
+    session_data_package = {
+        "items_data": st.session_state.items_data,
+        "schedule_data": st.session_state.schedule_data,
+        "detected_codes": st.session_state.detected_codes,
+        "overhead_pct": st.session_state.overhead_pct,
+        "api_key": api_key_value,
+        "base_url": base_url_value,
+        "model_name": model_choice_value
+    }
+
+    # 3. Call AI Assistant with tool calling
+    with st.spinner("SPACEMAN Assistant กำลังคิดและประมวลผลคำสั่ง..."):
+        ai_reply, actions = assistant_engine.run_chat_turn(
+            messages=st.session_state.chat_messages,
+            api_key=api_key_value,
+            session_data=session_data_package,
+            base_url=base_url_value,
+            model_name=model_choice_value
+        )
+
+        # 4. Sync back modifications to session state
+        st.session_state.items_data = session_data_package["items_data"]
+        st.session_state.schedule_data = session_data_package["schedule_data"]
+
+        # Append assistant reply
+        st.session_state.chat_messages.append({"role": "assistant", "content": ai_reply})
+
+        if actions:
+            for act in actions:
+                st.toast(act)
+
+    st.rerun()
+
+# ----------------- MAIN WORKSPACE CONTENT -----------------
 st.markdown('<div class="main-title">🪐 SPACEMAN STUDIO — AI BOQ & Project Schedule</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">เครื่องมืออัจฉริยะสำหรับถอดแบบ BOQ และสร้างไทม์ไลน์โครงการ (Gantt Chart) ส่งมอบลูกค้า</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">เครื่องมืออัจฉริยะสำหรับถอดแบบ BOQ, แก้ไขงบประมาณ และสร้างไทม์ไลน์โครงการ (Gantt Chart) ส่งมอบลูกค้า</div>', unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "📑 1. แบบก่อสร้าง (Drawings & PDF)", 
-    "🤖 2. ประมวลผลถอด BOQ (AI Extract)", 
+    "🤖 2. ตาราง BOQ (BOQ Table)", 
     "📊 3. ตรวจสอบ & ส่งออก BOQ Excel",
     "📅 4. ไทม์ไลน์งาน (Project Schedule)"
 ])
@@ -215,9 +290,9 @@ with tab1:
             else:
                 st.info("ไม่พบรหัสมาตรฐานอัตโนมัติ คุณสามารถเลือกหน้าเพื่อส่งให้ AI วิเคราะห์ในแท็บที่ 2 ได้")
 
-# ================= TAB 2: AI EXTRACTION =================
+# ================= TAB 2: AI EXTRACTION & BOQ TABLE =================
 with tab2:
-    st.subheader("🤖 ให้ AI วิเคราะห์และถอดรายการ BOQ")
+    st.subheader("🤖 จัดการและถอดรายการ BOQ")
     
     col_input, col_ctrl = st.columns([2, 1])
     with col_input:
@@ -253,10 +328,10 @@ with tab2:
         st.success("✅ โหลดข้อมูลทดสอบสำหรับโครงการ PLC House สำเร็จ! (มีทั้งชั้น 1, ชั้น 2, งานระบบ และ Preliminary)")
 
     if run_ai_btn:
-        if not api_key_input:
-            st.error("⚠️ ยังไม่ได้ตั้งค่า 'OpenCode Go API Key' (หรือคลิกปุ่ม 'โหลดข้อมูลทดสอบสำเร็จรูป' เพื่อลองเล่นก่อนได้)")
+        if not api_key_value:
+            st.error("⚠️ ยังไม่ได้ตั้งค่า 'OpenCode Go API Key' (กรุณาใส่ใน ⚙️ การตั้งค่าระบบ หรือโหลดข้อมูลทดสอบ)")
         else:
-            with st.spinner(f"กำลังส่งข้อมูลให้ {model_choice} ผ่าน OpenCode Go วิเคราะห์..."):
+            with st.spinner(f"กำลังส่งข้อมูลให้ {model_choice_value} ผ่าน OpenCode Go วิเคราะห์..."):
                 try:
                     if extract_mode == "ดึงจากรหัสและสารบัญแบบที่ AI ตรวจพบ (แนะนำ)":
                         if st.session_state.pdf_doc is not None:
@@ -269,10 +344,10 @@ with tab2:
                         content_to_send = custom_spec_text
 
                     extracted = boq_engine.extract_boq_from_text_or_drawing(
-                        api_key=api_key_input,
+                        api_key=api_key_value,
                         content_text=content_to_send,
-                        base_url=base_url_input,
-                        model_name=model_choice
+                        base_url=base_url_value,
+                        model_name=model_choice_value
                     )
                     st.session_state.items_data = extracted
                     st.success(f"🎉 AI ถอดรายการสำเร็จ! ได้ทั้งหมด {len(extracted)} รายการ")
@@ -281,7 +356,7 @@ with tab2:
 
     st.divider()
     st.subheader("📝 ตารางตรวจสอบ & ปรับแต่งตัวเลข (Interactive BOQ Editor)")
-    st.caption("💡 เพื่อนๆ สามารถคลิกแก้ไขปริมาณ (Qty), หน่วย (Unit), ค่าวัสดุ, ค่าแรง ได้โดยตรงในตารางนี้ ผลรวมจะคำนวณใหม่อัตโนมัติ!")
+    st.caption("💡 สามารถแก้ไขตัวเลขในตารางนี้ได้โดยตรง หรือพิมพ์สั่งทางซ้ายผ่าน **SPACEMAN Assistant** เช่น *'ปรับค่าแรงตู้ TV เป็น 10,000'* ก็ได้เช่นกัน!")
 
     if st.session_state.items_data:
         df = pd.DataFrame(st.session_state.items_data)
@@ -325,7 +400,7 @@ with tab2:
             for _, row in edited_df.iterrows()
         ]
     else:
-        st.info("ยังไม่มีข้อมูลรายการ BOQ กรุณากดปุ่มด้านบนเพื่อให้ AI เริ่มทำงาน หรือคลิก 'โหลดข้อมูลทดสอบสำเร็จรูป'")
+        st.info("ยังไม่มีข้อมูลรายการ BOQ กรุณากดปุ่มด้านบนเพื่อให้ AI เริ่มทำงาน หรือคลิก 'โหลดข้อมูลทดสอบสำเร็จรูป' หรือพิมพ์สั่งผ่านผู้ช่วยทางซ้าย")
 
 # ================= TAB 3: REVIEW & EXPORT =================
 with tab3:
@@ -333,16 +408,17 @@ with tab3:
     
     if st.session_state.items_data:
         items = st.session_state.items_data
+        overhead_pct_val = float(st.session_state.overhead_pct)
         total_mat = sum(float(it.get("material_rate", 0)) * float(it.get("qty", 1)) for it in items)
         total_lab = sum(float(it.get("labour_rate", 0)) * float(it.get("qty", 1)) for it in items)
         subtotal = total_mat + total_lab
-        overhead_amount = subtotal * (overhead_pct / 100.0)
+        overhead_amount = subtotal * (overhead_pct_val / 100.0)
         grand_total = subtotal + overhead_amount
 
         col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
         col_kpi1.metric("รวมค่าวัสดุ", f"{total_mat:,.2f} ฿")
         col_kpi2.metric("รวมค่าแรง", f"{total_lab:,.2f} ฿")
-        col_kpi3.metric(f"ค่าดำเนินการ ({overhead_pct}%)", f"{overhead_amount:,.2f} ฿")
+        col_kpi3.metric(f"ค่าดำเนินการ ({overhead_pct_val}%)", f"{overhead_amount:,.2f} ฿")
         col_kpi4.metric("ราคารวมทั้งสิ้น (Grand Total)", f"{grand_total:,.2f} ฿")
 
         st.divider()
@@ -356,7 +432,7 @@ with tab3:
                 {"รายการ": "3. งานระบบไฟฟ้า / ดวงโคม / สวิตซ์", "จำนวน": "1 Lot", "สถานะ": "คำนวณจากสเปก"},
                 {"รายการ": "4. งานเตรียมการ (Preliminary)", "จำนวน": "1 Lot", "สถานะ": "โพรเทคชั่น + ทำความสะอาด"},
                 {"รายการ": "รวมค่างาน (Total Direct Cost)", "จำนวน": "-", "สถานะ": f"{subtotal:,.2f} ฿"},
-                {"รายการ": f"ค่าดำเนินการและกำไร ({overhead_pct}%)", "จำนวน": "-", "สถานะ": f"{overhead_amount:,.2f} ฿"},
+                {"รายการ": f"ค่าดำเนินการและกำไร ({overhead_pct_val}%)", "จำนวน": "-", "สถานะ": f"{overhead_amount:,.2f} ฿"},
                 {"รายการ": "ราคารวมทั้งสิ้น (Sum Total)", "จำนวน": "-", "สถานะ": f"{grand_total:,.2f} ฿"},
             ])
             st.table(summary_preview)
@@ -371,7 +447,7 @@ with tab3:
             excel_bytes = excel_generator.populate_boq_excel(
                 template_source=custom_template_file,
                 items_data=st.session_state.items_data,
-                overhead_pct=overhead_pct,
+                overhead_pct=overhead_pct_val,
                 project_name=project_title,
                 customer_name=customer_title
             )
@@ -392,7 +468,7 @@ with tab3:
 # ================= TAB 4: PROJECT SCHEDULE =================
 with tab4:
     st.subheader("📅 SPACEMAN STUDIO — Project Schedule Generator")
-    st.markdown("พิมพ์บอกระยะเวลาและขั้นตอนงานเป็นภาษาพูด แล้วให้ AI จัดตาราง Gantt Chart สีสันตามมาตรฐานพร้อมจุดประชุม (M) และ Opening Date")
+    st.markdown("พิมพ์บอกระยะเวลาและขั้นตอนงานเป็นภาษาพูด หรือสั่งงานผ่าน **SPACEMAN Assistant** ทางซ้ายเพื่อสร้าง Gantt Chart อัตโนมัติ")
 
     col_sched_input, col_sched_btn = st.columns([2.5, 1])
     
@@ -425,16 +501,16 @@ with tab4:
         st.success("✅ โหลดไทม์ไลน์ตัวอย่าง Brewave Aree เรียบร้อยแล้ว!")
 
     if ai_sched_btn:
-        if not api_key_input:
-            st.error("⚠️ ยังไม่ได้ตั้งค่า 'OpenCode Go API Key' (หรือคลิกปุ่ม 'โหลดตัวอย่าง Brewave Aree ทันที' เพื่อลองดูผลลัพธ์ก่อนได้)")
+        if not api_key_value:
+            st.error("⚠️ ยังไม่ได้ตั้งค่า 'OpenCode Go API Key' (กรุณาใส่ใน ⚙️ การตั้งค่าระบบ หรือโหลดข้อมูลทดสอบ)")
         else:
-            with st.spinner(f"กำลังส่งให้ {model_choice} วางแผนไทม์ไลน์ตามมาตรฐาน SPACEMAN STUDIO..."):
+            with st.spinner(f"กำลังส่งให้ {model_choice_value} วางแผนไทม์ไลน์ตามมาตรฐาน SPACEMAN STUDIO..."):
                 try:
                     parsed_sched = schedule_engine.parse_schedule_prompt(
-                        api_key=api_key_input,
+                        api_key=api_key_value,
                         user_prompt=schedule_prompt_text,
-                        base_url=base_url_input,
-                        model_name=model_choice
+                        base_url=base_url_value,
+                        model_name=model_choice_value
                     )
                     st.session_state.schedule_data = parsed_sched
                     st.success("🎉 AI สร้างไทม์ไลน์งานสำเร็จเรียบร้อย!")
@@ -446,7 +522,6 @@ with tab4:
     if st.session_state.schedule_data:
         sched_data = st.session_state.schedule_data
 
-        # Top summary info
         c_pname, c_date, c_year, c_open = st.columns(4)
         c_pname.metric("ชื่อโครงการ", sched_data.get("project_name", "-"))
         c_date.metric("วันที่ออกเอกสาร", sched_data.get("date", "-"))
@@ -456,7 +531,6 @@ with tab4:
 
         st.subheader("🖥️ ตัวอย่างตาราง Project Schedule (SPACEMAN STUDIO)")
         
-        # Render visual HTML Gantt Table
         gantt_html = schedule_engine.render_schedule_html(sched_data)
         st.components.v1.html(gantt_html, height=580, scrolling=True)
 
